@@ -59,9 +59,10 @@ Serial myPort;
 Textarea lblStatus;
 
 long txTimer = 0;
-long txTime = 200; //500; //1500;
+long connectTimer = 0;
+boolean comConnecting = false;
 boolean comConnected = false;
-boolean txBusy = true;
+boolean txBusy = false;
 boolean beakon = false;
 int _kissInState;
 boolean _readAddress=true;
@@ -229,7 +230,7 @@ void setup() {
      .setSize(DROP_WIDTH,DROP_HIGHT)
      .setBarHeight(VALUE_HIGHT)
      .setItemHeight(VALUE_HIGHT)
-     .setFont(buttonFont)
+//     .setFont(buttonFont)
      .setColorActive(color(150,150,255))
      .setColorBackground(color(255))
      .setColorForeground(color(128,128,255))
@@ -247,27 +248,25 @@ void draw() {
   background(240);
   if (comConnected) {
     rxMessage();
-    long currentMillis = millis();
-    if (txBusy) {
-      if ((currentMillis - txTimer) > txTime) {
-        txBusy = false;
+    if (beakon) {
+      long currentMillis = millis();
+      if ((currentMillis - txTimer) > 10000) {
+        sendPacket();
       }
     }
-    else {
-      if (beakon) {
-        if ((currentMillis - txTimer) > 10000) {
-          sendPacket();
-        }
-      }
+  }
+  else if (comConnecting) {
+    long currentMillis = millis();
+    if ((currentMillis - connectTimer) > 200) {
+     comConnecting = false;
+     comConnected = true;
     }
   }
 }
 
 void COM_Port(int n) {
   if (comConnected) {
-    txBusy = true;
     comConnected = false;
-    txTimer = 0;
     myPort.clear();
     myPort.stop();
   }
@@ -277,8 +276,8 @@ void COM_Port(int n) {
   println(cp5.get(ScrollableList.class, "COM_Port").getItem(n).get("text"));
   println("-----------------------------");
   myPort = new Serial(this,Serial.list()[n], 9600);
-  comConnected = true;
-  txTimer = millis();
+  comConnecting = true;
+  connectTimer = millis();
 }
 
 public void set_tx_delay() {
@@ -316,8 +315,10 @@ public void stop_loopback() {
 }
 
 public void start_beakon() {
-  beakon = true;
-  sendPacket();
+  if (comConnected) {
+    beakon = true;
+    sendPacket();
+  }
 }
 
 public void stop_beakon() {
@@ -325,70 +326,70 @@ public void stop_beakon() {
 }
 
 void sendPacket() {
-  if (comConnected) {
-    if (!txBusy) {
+  txTimer = millis();
+  if (!txBusy) {
+    txBusy = true;
 
-      byte[] startBytes = {FEND, CMD_DATA_FRAME}; 
+    byte[] startBytes = {FEND, CMD_DATA_FRAME}; 
 
-      String destination = "APDR13p";
-      byte[] destAddr = new byte[7];
-      for (int i=0; i<7; i++) {
-        byte addrByte = (byte)destination.charAt(i);
-        addrByte <<= 1;
-        destAddr[i] = addrByte;
-      }
-
-      String source = "NOCALL ";
-      byte[] sourceAddr = new byte[7];
-      for (int i=0; i<7; i++) {
-        byte addrByte = (byte)source.charAt(i);
-        addrByte <<= 1;
-        sourceAddr[i] = addrByte;
-      }
-      
-      String digi1 = "WIDE1 1";
-      byte[] digiAddr1 = new byte[7];
-      for (int i=0; i<7; i++) {
-        byte addrByte = (byte)digi1.charAt(i);
-        addrByte <<= 1;
-        digiAddr1[i] = addrByte;
-      }
-
-      String digi2 = "WIDE2 2";
-      byte[] digiAddr2 = new byte[7];
-      for (int i=0; i<7; i++) {
-        byte addrByte = (byte)digi2.charAt(i);
-        addrByte <<= 1;
-        digiAddr2[i] = addrByte;
-      }
-      digiAddr2[6] += 1; 
-      
-      byte[] controlPidBytes = {(byte)0x03, (byte)0xf0}; 
-      
-      myPort.write(startBytes);
-      myPort.write(destAddr);
-      myPort.write(sourceAddr);
-      myPort.write(digiAddr1);
-      myPort.write(digiAddr2);
-      myPort.write(controlPidBytes);
-      myPort.write(")TEST!1905.56N/07251.25EH");
-      myPort.write(FEND);
-
-      txBusy = true;
-      txTimer = millis();
+    String destination = "APDR13p";
+    byte[] destAddr = new byte[7];
+    for (int i=0; i<7; i++) {
+      byte addrByte = (byte)destination.charAt(i);
+      addrByte <<= 1;
+      destAddr[i] = addrByte;
     }
+
+    String source = "NOCALL ";
+    byte[] sourceAddr = new byte[7];
+    for (int i=0; i<7; i++) {
+      byte addrByte = (byte)source.charAt(i);
+      addrByte <<= 1;
+      sourceAddr[i] = addrByte;
+    }
+      
+    String digi1 = "WIDE1 1";
+    byte[] digiAddr1 = new byte[7];
+    for (int i=0; i<7; i++) {
+      byte addrByte = (byte)digi1.charAt(i);
+      addrByte <<= 1;
+      digiAddr1[i] = addrByte;
+    }
+
+    String digi2 = "WIDE2 2";
+    byte[] digiAddr2 = new byte[7];
+    for (int i=0; i<7; i++) {
+      byte addrByte = (byte)digi2.charAt(i);
+      addrByte <<= 1;
+      digiAddr2[i] = addrByte;
+    }
+    digiAddr2[6] += 1; 
+      
+    byte[] controlPidBytes = {(byte)0x03, (byte)0xf0}; 
+      
+    myPort.write(startBytes);
+    myPort.write(destAddr);
+    myPort.write(sourceAddr);
+    myPort.write(digiAddr1);
+    myPort.write(digiAddr2);
+    myPort.write(controlPidBytes);
+    myPort.write(")TEST!1905.56N/07251.25EH");
+    myPort.write(FEND);
+    txBusy = false;
   }
 }
 
 void sendCommand(byte cmd,byte param) {
   if (comConnected) {
     if (!txBusy) {
+      txBusy = true;
+      txTimer = millis();
       myPort.write(FEND);
       myPort.write(cmd);
       myPort.write(param);
       myPort.write(FEND);
-      txBusy = true;
       txTimer = millis();
+      txBusy = false;
     }
   }
 }
